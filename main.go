@@ -3,14 +3,19 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/xml"
 	"errors"
 	"fmt"
+	"html"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"time"
 
 	"github.com/IronWill79/blog-aggregator/internal/config"
 	"github.com/IronWill79/blog-aggregator/internal/database"
+	"github.com/IronWill79/blog-aggregator/internal/rss"
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 )
@@ -103,6 +108,44 @@ func handlerGetUsers(s *state, cmd command) error {
 	return nil
 }
 
+func handlerAggregate(s *state, cmd command) error {
+	feed, err := fetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%v", feed)
+	return nil
+}
+
+func fetchFeed(ctx context.Context, feedURL string) (*rss.RSSFeed, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", feedURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("user-agent", "gator")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	xmlFeed, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	var feed rss.RSSFeed
+	err = xml.Unmarshal(xmlFeed, &feed)
+	if err != nil {
+		return nil, err
+	}
+	feed.Channel.Title = html.UnescapeString(feed.Channel.Title)
+	feed.Channel.Description = html.UnescapeString(feed.Channel.Description)
+	for i := range feed.Channel.Item {
+		feed.Channel.Item[i].Title = html.UnescapeString(feed.Channel.Item[i].Title)
+		feed.Channel.Item[i].Description = html.UnescapeString(feed.Channel.Item[i].Description)
+	}
+	return &feed, nil
+}
+
 func main() {
 	cfg := config.Read()
 	db, err := sql.Open("postgres", cfg.DBURL)
@@ -112,6 +155,7 @@ func main() {
 	dbQueries := database.New(db)
 	s := state{cfg: &cfg, db: dbQueries}
 	cmds := commands{cmds: make(map[string]func(*state, command) error)}
+	cmds.register("agg", handlerAggregate)
 	cmds.register("login", handlerLogin)
 	cmds.register("register", handlerRegister)
 	cmds.register("reset", handlerReset)
