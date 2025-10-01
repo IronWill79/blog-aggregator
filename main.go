@@ -177,6 +177,23 @@ func handlerAddFeed(s *state, cmd command) error {
 	return nil
 }
 
+func handlerPrintFeeds(s *state, cmd command) error {
+	feeds, err := s.db.GetAllFeeds(context.Background())
+	if err != nil {
+		return err
+	}
+	for _, feed := range feeds {
+		username, err := s.db.GetUserById(context.Background(), feed.UserID)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Feed name: %s\n", feed.Name)
+		fmt.Printf("Feed URL: %s\n", feed.Url)
+		fmt.Printf("Username: %s\n", username)
+	}
+	return nil
+}
+
 func main() {
 	cfg := config.Read()
 	db, err := sql.Open("postgres", cfg.DBURL)
@@ -188,6 +205,7 @@ func main() {
 	cmds := commands{cmds: make(map[string]func(*state, command) error)}
 	cmds.register("addfeed", handlerAddFeed)
 	cmds.register("agg", handlerAggregate)
+	cmds.register("feeds", handlerPrintFeeds)
 	cmds.register("login", handlerLogin)
 	cmds.register("register", handlerRegister)
 	cmds.register("reset", handlerReset)
