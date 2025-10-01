@@ -146,6 +146,37 @@ func fetchFeed(ctx context.Context, feedURL string) (*rss.RSSFeed, error) {
 	return &feed, nil
 }
 
+func handlerAddFeed(s *state, cmd command) error {
+	if len(cmd.arguments) != 2 {
+		return errors.New("addfeed requires 2 arguments, name and url")
+	}
+	name := cmd.arguments[0]
+	url := cmd.arguments[1]
+	user, err := s.db.GetUser(context.Background(), s.cfg.Username)
+	if err != nil {
+		return err
+	}
+	id := user.ID
+	feed, err := s.db.CreateFeed(context.Background(), database.CreateFeedParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Url:       url,
+		Name:      name,
+		UserID:    id,
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Feed ID: %s\n", feed.ID)
+	fmt.Printf("Created at: %s\n", feed.CreatedAt)
+	fmt.Printf("Updated at: %s\n", feed.UpdatedAt)
+	fmt.Printf("Name: %s\n", feed.Name)
+	fmt.Printf("Url: %s\n", feed.Url)
+	fmt.Printf("User ID: %s\n", feed.UserID)
+	return nil
+}
+
 func main() {
 	cfg := config.Read()
 	db, err := sql.Open("postgres", cfg.DBURL)
@@ -155,6 +186,7 @@ func main() {
 	dbQueries := database.New(db)
 	s := state{cfg: &cfg, db: dbQueries}
 	cmds := commands{cmds: make(map[string]func(*state, command) error)}
+	cmds.register("addfeed", handlerAddFeed)
 	cmds.register("agg", handlerAggregate)
 	cmds.register("login", handlerLogin)
 	cmds.register("register", handlerRegister)
