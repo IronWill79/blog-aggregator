@@ -183,13 +183,13 @@ func handlerPrintFeeds(s *state, cmd command) error {
 		return err
 	}
 	for _, feed := range feeds {
-		username, err := s.db.GetUserById(context.Background(), feed.UserID)
+		user, err := s.db.GetUserById(context.Background(), feed.UserID)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("Feed name: %s\n", feed.Name)
 		fmt.Printf("Feed URL: %s\n", feed.Url)
-		fmt.Printf("Username: %s\n", username)
+		fmt.Printf("Username: %s\n", user.Name)
 	}
 	return nil
 }
