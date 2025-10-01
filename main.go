@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/IronWill79/blog-aggregator/internal/config"
+	_ "github.com/lib/pq"
 )
 
 type state struct {
