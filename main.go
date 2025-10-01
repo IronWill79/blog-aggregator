@@ -44,7 +44,12 @@ func handlerLogin(s *state, cmd command) error {
 	if len(cmd.arguments) != 1 {
 		return errors.New("username required")
 	}
-	if err := s.cfg.SetUser(cmd.arguments[0]); err != nil {
+	name := cmd.arguments[0]
+	u, err := s.db.GetUser(context.Background(), name)
+	if err != nil {
+		return err
+	}
+	if err := s.cfg.SetUser(u.Name); err != nil {
 		return err
 	}
 	fmt.Println("Username has been set")
