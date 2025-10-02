@@ -146,16 +146,12 @@ func fetchFeed(ctx context.Context, feedURL string) (*rss.RSSFeed, error) {
 	return &feed, nil
 }
 
-func handlerAddFeed(s *state, cmd command) error {
+func handlerAddFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.arguments) != 2 {
 		return errors.New("addfeed requires 2 arguments, name and url")
 	}
 	name := cmd.arguments[0]
 	url := cmd.arguments[1]
-	user, err := s.db.GetUser(context.Background(), s.cfg.Username)
-	if err != nil {
-		return err
-	}
 	id := user.ID
 	feed, err := s.db.CreateFeed(context.Background(), database.CreateFeedParams{
 		ID:        uuid.New(),
@@ -204,15 +200,11 @@ func handlerPrintFeeds(s *state, cmd command) error {
 	return nil
 }
 
-func handlerFollowFeed(s *state, cmd command) error {
+func handlerFollowFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.arguments) != 1 {
 		return errors.New("follow requires a single argument, url")
 	}
 	url := cmd.arguments[0]
-	user, err := s.db.GetUser(context.Background(), s.cfg.Username)
-	if err != nil {
-		return err
-	}
 	userId := user.ID
 	feed, err := s.db.GetFeedByUrl(context.Background(), url)
 	if err != nil {
@@ -233,11 +225,7 @@ func handlerFollowFeed(s *state, cmd command) error {
 	return nil
 }
 
-func handlerPrintFollowedFeeds(s *state, cmd command) error {
-	user, err := s.db.GetUser(context.Background(), s.cfg.Username)
-	if err != nil {
-		return err
-	}
+func handlerPrintFollowedFeeds(s *state, cmd command, user database.User) error {
 	feeds, err := s.db.GetFeedFollowsForUser(context.Background(), user.Name)
 	if err != nil {
 		return err
@@ -249,6 +237,14 @@ func handlerPrintFollowedFeeds(s *state, cmd command) error {
 	return nil
 }
 
+func (s *state) middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error) func(*state, command) error {
+	user, err := s.db.GetUser(context.Background(), s.cfg.Username)
+	if err != nil {
+		return func(s *state, c command) error { return err }
+	}
+	return func(s *state, c command) error { return handler(s, c, user) }
+}
+
 func main() {
 	cfg := config.Read()
 	db, err := sql.Open("postgres", cfg.DBURL)
@@ -258,11 +254,11 @@ func main() {
 	dbQueries := database.New(db)
 	s := state{cfg: &cfg, db: dbQueries}
 	cmds := commands{cmds: make(map[string]func(*state, command) error)}
-	cmds.register("addfeed", handlerAddFeed)
+	cmds.register("addfeed", s.middlewareLoggedIn(handlerAddFeed))
 	cmds.register("agg", handlerAggregate)
 	cmds.register("feeds", handlerPrintFeeds)
-	cmds.register("follow", handlerFollowFeed)
-	cmds.register("following", handlerPrintFollowedFeeds)
+	cmds.register("follow", s.middlewareLoggedIn(handlerFollowFeed))
+	cmds.register("following", s.middlewareLoggedIn(handlerPrintFollowedFeeds))
 	cmds.register("login", handlerLogin)
 	cmds.register("register", handlerRegister)
 	cmds.register("reset", handlerReset)
