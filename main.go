@@ -245,6 +245,22 @@ func (s *state) middlewareLoggedIn(handler func(s *state, cmd command, user data
 	return func(s *state, c command) error { return handler(s, c, user) }
 }
 
+func handlerUnfollowFeed(s *state, cmd command, user database.User) error {
+	if len(cmd.arguments) != 1 {
+		return errors.New("unfollow requires one argument, url")
+	}
+	url := cmd.arguments[0]
+	id := user.ID
+	err := s.db.DeleteFeedFollow(context.Background(), database.DeleteFeedFollowParams{
+		UserID: id,
+		Url:    url,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func main() {
 	cfg := config.Read()
 	db, err := sql.Open("postgres", cfg.DBURL)
@@ -262,6 +278,7 @@ func main() {
 	cmds.register("login", handlerLogin)
 	cmds.register("register", handlerRegister)
 	cmds.register("reset", handlerReset)
+	cmds.register("unfollow", s.middlewareLoggedIn(handlerUnfollowFeed))
 	cmds.register("users", handlerGetUsers)
 	if len(os.Args) < 2 {
 		fmt.Println("no command found")
