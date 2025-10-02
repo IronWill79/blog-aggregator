@@ -194,6 +194,35 @@ func handlerPrintFeeds(s *state, cmd command) error {
 	return nil
 }
 
+func handlerFollowFeed(s *state, cmd command) error {
+	if len(cmd.arguments) != 1 {
+		return errors.New("follow requires a single argument, url")
+	}
+	url := cmd.arguments[0]
+	user, err := s.db.GetUser(context.Background(), s.cfg.Username)
+	if err != nil {
+		return err
+	}
+	userId := user.ID
+	feed, err := s.db.GetFeedByUrl(context.Background(), url)
+	if err != nil {
+		return err
+	}
+	feedId := feed.ID
+	follow, err := s.db.CreateFeedFollow(context.Background(), database.CreateFeedFollowParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		UserID:    userId,
+		FeedID:    feedId,
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Feed %s followed by %s\n", follow.FeedName, follow.UserName)
+	return nil
+}
+
 func main() {
 	cfg := config.Read()
 	db, err := sql.Open("postgres", cfg.DBURL)
@@ -206,6 +235,7 @@ func main() {
 	cmds.register("addfeed", handlerAddFeed)
 	cmds.register("agg", handlerAggregate)
 	cmds.register("feeds", handlerPrintFeeds)
+	cmds.register("follow", handlerFollowFeed)
 	cmds.register("login", handlerLogin)
 	cmds.register("register", handlerRegister)
 	cmds.register("reset", handlerReset)
