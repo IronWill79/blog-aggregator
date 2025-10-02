@@ -168,6 +168,16 @@ func handlerAddFeed(s *state, cmd command) error {
 	if err != nil {
 		return err
 	}
+	_, err = s.db.CreateFeedFollow(context.Background(), database.CreateFeedFollowParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		UserID:    id,
+		FeedID:    feed.ID,
+	})
+	if err != nil {
+		return err
+	}
 	fmt.Printf("Feed ID: %s\n", feed.ID)
 	fmt.Printf("Created at: %s\n", feed.CreatedAt)
 	fmt.Printf("Updated at: %s\n", feed.UpdatedAt)
@@ -223,6 +233,22 @@ func handlerFollowFeed(s *state, cmd command) error {
 	return nil
 }
 
+func handlerPrintFollowedFeeds(s *state, cmd command) error {
+	user, err := s.db.GetUser(context.Background(), s.cfg.Username)
+	if err != nil {
+		return err
+	}
+	feeds, err := s.db.GetFeedFollowsForUser(context.Background(), user.Name)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Followed feeds for %s\n", user.Name)
+	for _, feed := range feeds {
+		fmt.Printf("* %s\n", feed.FeedName)
+	}
+	return nil
+}
+
 func main() {
 	cfg := config.Read()
 	db, err := sql.Open("postgres", cfg.DBURL)
@@ -236,6 +262,7 @@ func main() {
 	cmds.register("agg", handlerAggregate)
 	cmds.register("feeds", handlerPrintFeeds)
 	cmds.register("follow", handlerFollowFeed)
+	cmds.register("following", handlerPrintFollowedFeeds)
 	cmds.register("login", handlerLogin)
 	cmds.register("register", handlerRegister)
 	cmds.register("reset", handlerReset)
