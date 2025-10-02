@@ -109,12 +109,18 @@ func handlerGetUsers(s *state, cmd command) error {
 }
 
 func handlerAggregate(s *state, cmd command) error {
-	feed, err := fetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
+	if len(cmd.arguments) != 1 {
+		return errors.New("agg command takes a single argument, time_between_reqs")
+	}
+	timeBetweenReqs, err := time.ParseDuration(cmd.arguments[0])
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%v", feed)
-	return nil
+	fmt.Printf("Collecting feeds every %s\n", timeBetweenReqs)
+	ticker := time.NewTicker(timeBetweenReqs)
+	for ; ; <-ticker.C {
+		scrapeFeeds(s)
+	}
 }
 
 func fetchFeed(ctx context.Context, feedURL string) (*rss.RSSFeed, error) {
@@ -257,6 +263,25 @@ func handlerUnfollowFeed(s *state, cmd command, user database.User) error {
 	})
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func scrapeFeeds(s *state) error {
+	feedToFetch, err := s.db.GetNextFeedToFetch(context.Background())
+	if err != nil {
+		return err
+	}
+	err = s.db.MarkFeedFetched(context.Background(), feedToFetch.ID)
+	if err != nil {
+		return err
+	}
+	feed, err := fetchFeed(context.Background(), feedToFetch.Url)
+	if err != nil {
+		return err
+	}
+	for _, item := range feed.Channel.Item {
+		fmt.Printf("* %s\n", item.Title)
 	}
 	return nil
 }
