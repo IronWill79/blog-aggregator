@@ -11,6 +11,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/IronWill79/blog-aggregator/internal/config"
@@ -283,7 +285,53 @@ func scrapeFeeds(s *state) error {
 		return err
 	}
 	for _, item := range feed.Channel.Item {
-		fmt.Printf("* %s\n", item.Title)
+		publishedAt, err := time.Parse(time.RFC1123Z, item.PubDate)
+		if err != nil {
+			return err
+		}
+		_, err = s.db.CreatePost(context.Background(), database.CreatePostParams{
+			ID:          uuid.New(),
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+			Title:       item.Title,
+			Url:         item.Link,
+			Description: item.Description,
+			PublishedAt: publishedAt,
+			FeedID:      feedToFetch.ID,
+		})
+		if err != nil {
+			if !strings.Contains(err.Error(), `duplicate key value violates unique constraint "posts_url_key"`) {
+				log.Printf("error creating post: %v\n", err)
+				return err
+			}
+		}
+		log.Printf("Post `%s` created or existing\n", item.Title)
+	}
+	return nil
+}
+
+func handlerBrowsePosts(s *state, cmd command, user database.User) error {
+	if len(cmd.arguments) > 1 {
+		return errors.New("browse command only takes 1 argument, limit")
+	}
+	var limit int32
+	limit = 2
+	if len(cmd.arguments) == 1 {
+		parsedLimit, err := strconv.Atoi(cmd.arguments[0])
+		if err != nil {
+			return err
+		}
+		limit = int32(parsedLimit)
+	}
+	posts, err := s.db.GetPostsForUser(context.Background(), database.GetPostsForUserParams{
+		ID:    user.ID,
+		Limit: limit,
+	})
+	if err != nil {
+		return err
+	}
+	for _, post := range posts {
+		fmt.Printf("- %s\n", post.Title)
 	}
 	return nil
 }
@@ -299,6 +347,7 @@ func main() {
 	cmds := commands{cmds: make(map[string]func(*state, command) error)}
 	cmds.register("addfeed", middlewareLoggedIn(handlerAddFeed))
 	cmds.register("agg", handlerAggregate)
+	cmds.register("browse", middlewareLoggedIn(handlerBrowsePosts))
 	cmds.register("feeds", handlerPrintFeeds)
 	cmds.register("follow", middlewareLoggedIn(handlerFollowFeed))
 	cmds.register("following", middlewareLoggedIn(handlerPrintFollowedFeeds))
