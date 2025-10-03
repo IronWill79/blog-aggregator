@@ -243,12 +243,14 @@ func handlerPrintFollowedFeeds(s *state, cmd command, user database.User) error 
 	return nil
 }
 
-func (s *state) middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error) func(*state, command) error {
-	user, err := s.db.GetUser(context.Background(), s.cfg.Username)
-	if err != nil {
-		return func(s *state, c command) error { return err }
+func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error) func(*state, command) error {
+	return func(s *state, c command) error {
+		user, err := s.db.GetUser(context.Background(), s.cfg.Username)
+		if err != nil {
+			return err
+		}
+		return handler(s, c, user)
 	}
-	return func(s *state, c command) error { return handler(s, c, user) }
 }
 
 func handlerUnfollowFeed(s *state, cmd command, user database.User) error {
@@ -295,15 +297,15 @@ func main() {
 	dbQueries := database.New(db)
 	s := state{cfg: &cfg, db: dbQueries}
 	cmds := commands{cmds: make(map[string]func(*state, command) error)}
-	cmds.register("addfeed", s.middlewareLoggedIn(handlerAddFeed))
+	cmds.register("addfeed", middlewareLoggedIn(handlerAddFeed))
 	cmds.register("agg", handlerAggregate)
 	cmds.register("feeds", handlerPrintFeeds)
-	cmds.register("follow", s.middlewareLoggedIn(handlerFollowFeed))
-	cmds.register("following", s.middlewareLoggedIn(handlerPrintFollowedFeeds))
+	cmds.register("follow", middlewareLoggedIn(handlerFollowFeed))
+	cmds.register("following", middlewareLoggedIn(handlerPrintFollowedFeeds))
 	cmds.register("login", handlerLogin)
 	cmds.register("register", handlerRegister)
 	cmds.register("reset", handlerReset)
-	cmds.register("unfollow", s.middlewareLoggedIn(handlerUnfollowFeed))
+	cmds.register("unfollow", middlewareLoggedIn(handlerUnfollowFeed))
 	cmds.register("users", handlerGetUsers)
 	if len(os.Args) < 2 {
 		fmt.Println("no command found")
