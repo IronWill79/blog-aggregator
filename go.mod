@@ -1,4 +1,4 @@
-module github.com/IronWill79/blog-aggregator
+module github.com/IronWill79/gator
 
 go 1.25.0
 

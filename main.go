@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/IronWill79/blog-aggregator/internal/config"
-	"github.com/IronWill79/blog-aggregator/internal/database"
-	"github.com/IronWill79/blog-aggregator/internal/rss"
+	"github.com/IronWill79/gator/internal/config"
+	"github.com/IronWill79/gator/internal/database"
+	"github.com/IronWill79/gator/internal/rss"
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 )
